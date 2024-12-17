@@ -3,6 +3,7 @@ import random
 from importlib.resources import files
 
 import torch
+import numpy as np
 import torch.nn.functional as F
 import torchaudio
 from datasets import Dataset as Dataset_
@@ -132,6 +133,7 @@ class CustomDataset(Dataset):
             audio_path = row["audio_path"]
             text = row["text"]
             duration = row["duration"]
+            attn = row["attn"]
 
             # filter by given length
             if 0.3 <= duration <= 30:
@@ -160,6 +162,7 @@ class CustomDataset(Dataset):
         return {
             "mel_spec": mel_spec,
             "text": text,
+            "attn": attn,
         }
 
 
@@ -310,10 +313,24 @@ def collate_fn(batch):
 
     text = [item["text"] for item in batch]
     text_lengths = torch.LongTensor([len(item) for item in text])
+    max_text_length = text_lengths.amax()
+
+    attn_matrices = [item["attn"] for item in batch]
+    padded_attn_matrices = []
+    for attn in attn_matrices:
+        attn = torch.tensor(np.array(attn))
+        attn_height, attn_width = attn.shape
+        # Pad to max_text_length x max_mel_length
+        pad_height = max_text_length - attn_height
+        pad_width = max_mel_length - attn_width
+        padded_attn = F.pad(attn, (0, pad_width, 0, pad_height), value=0)
+        padded_attn_matrices.append(padded_attn)
+    attn = torch.stack(padded_attn_matrices)
 
     return dict(
         mel=mel_specs,
         mel_lengths=mel_lengths,
         text=text,
         text_lengths=text_lengths,
+        attn=attn,
     )

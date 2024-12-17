@@ -47,6 +47,11 @@ accelerate launch --mixed_precision=fp16 src/f5_tts/train/train.py --config-name
 ```
 
 ### 2. Finetuning practice
+
+```
+accelerate launch src/f5_tts/train/finetune_cli.py --dataset_name LJSpeech --batch_size_per_gpu 2000 --save_per_updates 500 --tokenizer custom --log_samples True --logger tensorboard
+```
+
 Discussion board for Finetuning [#57](https://github.com/SWivid/F5-TTS/discussions/57).
 
 Gradio UI training/finetuning with `src/f5_tts/train/finetune_gradio.py` see [#143](https://github.com/SWivid/F5-TTS/discussions/143).

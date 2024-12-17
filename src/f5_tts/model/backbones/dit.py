@@ -24,6 +24,7 @@ from f5_tts.model.modules import (
     precompute_freqs_cis,
     get_pos_embed_indices,
 )
+from f5_tts.train.datasets.utils_alignment import fix_attention_mask
 
 
 # Text embedding
@@ -44,11 +45,20 @@ class TextEmbedding(nn.Module):
         else:
             self.extra_modeling = False
 
-    def forward(self, text: int["b nt"], seq_len, drop_text=False):  # noqa: F722
+    def forward(self, text: int["b nt"], seq_len, attn=None, drop_text=False):  # noqa: F722
         text = text + 1  # use 0 as filler token. preprocess of batch pad -1, see list_str_to_idx()
         text = text[:, :seq_len]  # curtail if character tokens are more than the mel spec tokens
         batch, text_len = text.shape[0], text.shape[1]
-        text = F.pad(text, (0, seq_len - text_len), value=0)
+        if attn == None:
+            text = F.pad(text, (0, seq_len - text_len), value=0)
+        else:
+            # attn: [b nt n]
+            attn = fix_attention_mask(attn)
+            attn = attn.float()
+            text = text.float()
+            text = torch.bmm(text.unsqueeze(2).transpose(1,2), attn).squeeze(1)[..., :seq_len] # [b n]
+            text = text.long()
+            # text = text.matmul(attn) # [b n]
 
         if drop_text:  # cfg for text
             text = torch.zeros_like(text)
@@ -147,6 +157,7 @@ class DiT(nn.Module):
         drop_audio_cond,  # cfg for cond audio
         drop_text,  # cfg for text
         mask: bool["b n"] | None = None,  # noqa: F722
+        attn = None,
     ):
         batch, seq_len = x.shape[0], x.shape[1]
         if time.ndim == 0:
@@ -154,7 +165,7 @@ class DiT(nn.Module):
 
         # t: conditioning time, c: context (text + masked cond audio), x: noised input audio
         t = self.time_embed(time)
-        text_embed = self.text_embed(text, seq_len, drop_text=drop_text)
+        text_embed = self.text_embed(text, seq_len, attn=attn, drop_text=drop_text)
         x = self.input_embed(x, cond, text_embed, drop_audio_cond=drop_audio_cond)
 
         rope = self.rotary_embed.forward_from_seq_len(seq_len)

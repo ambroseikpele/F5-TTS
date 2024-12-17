@@ -116,8 +116,10 @@ def main():
     tokenizer = args.tokenizer
     if tokenizer == "custom":
         if not args.tokenizer_path:
-            raise ValueError("Custom tokenizer selected, but no tokenizer_path provided.")
-        tokenizer_path = args.tokenizer_path
+            tokenizer_path = str(cached_path("hf://SWivid/F5-TTS/F5TTS_Base/vocab.txt"))
+            # raise ValueError("Custom tokenizer selected, but no tokenizer_path provided.")
+        else:
+            tokenizer_path = args.tokenizer_path
     else:
         tokenizer_path = args.dataset_name
 

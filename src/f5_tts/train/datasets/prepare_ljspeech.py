@@ -4,20 +4,27 @@ import sys
 sys.path.append(os.getcwd())
 
 import json
+import torch
 from importlib.resources import files
 from pathlib import Path
 from tqdm import tqdm
 import soundfile as sf
 from datasets.arrow_writer import ArrowWriter
+from utils_alignment import load_alignment_model, generate_word_timestamps, word_to_character_alignment, create_attention_matrix
 
 
 def main():
+    alignment_model, alignment_tokenizer = load_alignment_model(
+        "cuda",
+        dtype=torch.float16,
+    )
+    
     result = []
     duration_list = []
     text_vocab_set = set()
 
     with open(meta_info, "r") as f:
-        lines = f.readlines()
+        lines = f.readlines()[:2000]
         for line in tqdm(lines):
             uttr, text, norm_text = line.split("|")
             norm_text = norm_text.strip()
@@ -25,7 +32,16 @@ def main():
             duration = sf.info(wav_path).duration
             if duration < 0.4 or duration > 30:
                 continue
-            result.append({"audio_path": str(wav_path), "text": norm_text, "duration": duration})
+            
+            word_timestamps = generate_word_timestamps(
+                wav_path, norm_text, alignment_model, alignment_tokenizer,
+            )
+            char_alignments = word_to_character_alignment(word_timestamps)
+            SAMPLE_RATE = 24000
+            HOP_LENGTH = 256
+            attention_matrix = create_attention_matrix(char_alignments, SAMPLE_RATE, HOP_LENGTH)
+            
+            result.append({"audio_path": str(wav_path), "text": norm_text, "duration": duration, "attn": attention_matrix,})
             duration_list.append(duration)
             text_vocab_set.update(list(norm_text))
 
@@ -56,7 +72,7 @@ def main():
 if __name__ == "__main__":
     tokenizer = "char"  # "pinyin" | "char"
 
-    dataset_dir = "<SOME_PATH>/LJSpeech-1.1"
+    dataset_dir = "data/LJSpeech-1.1"
     dataset_name = f"LJSpeech_{tokenizer}"
     meta_info = os.path.join(dataset_dir, "metadata.csv")
     save_dir = str(files("f5_tts").joinpath("../../")) + f"/data/{dataset_name}"

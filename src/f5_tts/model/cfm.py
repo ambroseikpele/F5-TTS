@@ -96,6 +96,7 @@ class CFM(nn.Module):
         duplicate_test=False,
         t_inter=0.1,
         edit_mask=None,
+        attn=None,
     ):
         self.eval()
         # raw wave
@@ -164,14 +165,15 @@ class CFM(nn.Module):
             # step_cond = torch.where(cond_mask, cond, torch.zeros_like(cond))
 
             # predict flow
+            import pdb; pdb.set_trace()
             pred = self.transformer(
-                x=x, cond=step_cond, text=text, time=t, mask=mask, drop_audio_cond=False, drop_text=False
+                x=x, cond=step_cond, text=text, time=t, mask=mask, drop_audio_cond=False, drop_text=False, attn=attn,
             )
             if cfg_strength < 1e-5:
                 return pred
 
             null_pred = self.transformer(
-                x=x, cond=step_cond, text=text, time=t, mask=mask, drop_audio_cond=True, drop_text=True
+                x=x, cond=step_cond, text=text, time=t, mask=mask, drop_audio_cond=True, drop_text=True, attn=attn,
             )
             return pred + (pred - null_pred) * cfg_strength
 
@@ -216,6 +218,7 @@ class CFM(nn.Module):
         *,
         lens: int["b"] | None = None,  # noqa: F821
         noise_scheduler: str | None = None,
+        attn=None,
     ):
         # handle raw wave
         if inp.ndim == 2:
@@ -275,7 +278,7 @@ class CFM(nn.Module):
         # if want rigourously mask out padding, record in collate_fn in dataset.py, and pass in here
         # adding mask will use more memory, thus also need to adjust batchsampler with scaled down threshold for long sequences
         pred = self.transformer(
-            x=φ, cond=cond, text=text, time=time, drop_audio_cond=drop_audio_cond, drop_text=drop_text
+            x=φ, cond=cond, text=text, time=time, drop_audio_cond=drop_audio_cond, drop_text=drop_text, attn=attn,
         )
 
         # flow matching loss

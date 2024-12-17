@@ -297,6 +297,7 @@ class Trainer:
                     text_inputs = batch["text"]
                     mel_spec = batch["mel"].permute(0, 2, 1)
                     mel_lengths = batch["mel_lengths"]
+                    attn = batch["attn"]
 
                     # TODO. add duration predictor training
                     if self.duration_predictor is not None and self.accelerator.is_local_main_process:
@@ -304,7 +305,7 @@ class Trainer:
                         self.accelerator.log({"duration loss": dur_loss.item()}, step=global_step)
 
                     loss, cond, pred = self.model(
-                        mel_spec, text=text_inputs, lens=mel_lengths, noise_scheduler=self.noise_scheduler
+                        mel_spec, text=text_inputs, lens=mel_lengths, noise_scheduler=self.noise_scheduler, attn=attn
                     )
                     self.accelerator.backward(loss)
 
@@ -344,6 +345,7 @@ class Trainer:
                                 steps=nfe_step,
                                 cfg_strength=cfg_strength,
                                 sway_sampling_coef=sway_sampling_coef,
+                                attn=attn[0:1,:,:],
                             )
                             generated = generated.to(torch.float32)
                             gen_mel_spec = generated[:, ref_audio_len:, :].permute(0, 2, 1).to(self.accelerator.device)
