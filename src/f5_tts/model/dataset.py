@@ -134,7 +134,12 @@ class CustomDataset(Dataset):
             text = row["text"]
             duration = row["duration"]
             attn = row["attn"]
-
+            try:
+                assert np.array(attn).shape == (len(text), duration * 24000 // 256)
+            except:
+                print (np.array(attn).shape, (len(text), duration * 24000 // 256), text)
+                continue
+            
             # filter by given length
             if 0.3 <= duration <= 30:
                 break  # valid
@@ -321,8 +326,8 @@ def collate_fn(batch):
         attn = torch.tensor(np.array(attn))
         attn_height, attn_width = attn.shape
         # Pad to max_text_length x max_mel_length
-        pad_height = max_text_length - attn_height
-        pad_width = max_mel_length - attn_width
+        pad_height = max(0, max_text_length - attn_height)
+        pad_width = max(0, max_mel_length - attn_width)
         padded_attn = F.pad(attn, (0, pad_width, 0, pad_height), value=0)
         padded_attn_matrices.append(padded_attn)
     attn = torch.stack(padded_attn_matrices)

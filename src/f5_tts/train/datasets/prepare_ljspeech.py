@@ -9,7 +9,9 @@ from importlib.resources import files
 from pathlib import Path
 from tqdm import tqdm
 import soundfile as sf
+from datasets import Dataset
 from datasets.arrow_writer import ArrowWriter
+import librosa
 from utils_alignment import load_alignment_model, generate_word_timestamps, word_to_character_alignment, create_attention_matrix
 
 
@@ -36,12 +38,13 @@ def main():
             word_timestamps = generate_word_timestamps(
                 wav_path, norm_text, alignment_model, alignment_tokenizer,
             )
-            char_alignments = word_to_character_alignment(word_timestamps)
+            char_alignments = word_to_character_alignment(word_timestamps, norm_text)
             SAMPLE_RATE = 24000
             HOP_LENGTH = 256
-            attention_matrix = create_attention_matrix(char_alignments, SAMPLE_RATE, HOP_LENGTH)
+            len_mel = librosa.get_duration(path=wav_path) * SAMPLE_RATE // HOP_LENGTH
+            attention_matrix = create_attention_matrix(char_alignments, SAMPLE_RATE, HOP_LENGTH, len_mel)
             
-            result.append({"audio_path": str(wav_path), "text": norm_text, "duration": duration, "attn": attention_matrix,})
+            result.append({"audio_path": str(wav_path), "text": norm_text, "duration": duration, "attn": attention_matrix.tolist(),})
             duration_list.append(duration)
             text_vocab_set.update(list(norm_text))
 
@@ -52,7 +55,18 @@ def main():
 
     with ArrowWriter(path=f"{save_dir}/raw.arrow") as writer:
         for line in tqdm(result, desc="Writing to raw.arrow ..."):
-            writer.write(line)
+            # writer.write(line)
+            if isinstance(line, dict):  # Ensure line is a dictionary
+                writer.write(line)
+            else:
+                raise ValueError("Each line must be a dictionary with key-value pairs.")
+    
+    # # Convert the result into a Dataset
+    # dataset = Dataset.from_list(result)
+    # # Open the ArrowWriter to write the data
+    # with ArrowWriter(path=f"{save_dir}/raw.arrow") as writer:
+    #     # Write the entire dataset at once
+    #     writer.write_batch(dataset)
 
     # dup a json separately saving duration in case for DynamicBatchSampler ease
     with open(f"{save_dir}/duration.json", "w", encoding="utf-8") as f:

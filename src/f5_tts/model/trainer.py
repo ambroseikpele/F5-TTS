@@ -337,6 +337,11 @@ class Trainer:
                         infer_text = [
                             text_inputs[0] + ([" "] if isinstance(text_inputs[0], list) else " ") + text_inputs[0]
                         ]
+                        A = attn[0:1,:,:]
+                        final_shape = (1, 2 * A.shape[1] + 1, 2 * A.shape[2])
+                        val_attn = torch.zeros(final_shape, dtype=A.dtype, device=A.device)
+                        val_attn[0, :A.shape[1], :A.shape[2]] = A[0]
+                        val_attn[0, -A.shape[1]:, -A.shape[2]:] = A[0]
                         with torch.inference_mode():
                             generated, _ = self.accelerator.unwrap_model(self.model).sample(
                                 cond=mel_spec[0][:ref_audio_len].unsqueeze(0),
@@ -345,7 +350,7 @@ class Trainer:
                                 steps=nfe_step,
                                 cfg_strength=cfg_strength,
                                 sway_sampling_coef=sway_sampling_coef,
-                                attn=attn[0:1,:,:],
+                                attn=val_attn,
                             )
                             generated = generated.to(torch.float32)
                             gen_mel_spec = generated[:, ref_audio_len:, :].permute(0, 2, 1).to(self.accelerator.device)

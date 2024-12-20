@@ -53,7 +53,7 @@ class TextEmbedding(nn.Module):
             text = F.pad(text, (0, seq_len - text_len), value=0)
         else:
             # attn: [b nt n]
-            attn = fix_attention_mask(attn)
+            # attn = fix_attention_mask(attn)
             attn = attn.float()
             text = text.float()
             text = torch.bmm(text.unsqueeze(2).transpose(1,2), attn).squeeze(1)[..., :seq_len] # [b n]

@@ -19,65 +19,54 @@ HOP_LENGTH = 256     # Hop length for Mel spectrogram computation
 def timestamp_to_mel_frame(timestamp, sample_rate, hop_length):
     return int(timestamp * sample_rate / hop_length)
 
-# Convert word-level alignment to character-level alignment
-def word_to_character_alignment(word_alignments):
-    char_alignments = []
-    for word_data in word_alignments:
-        start_time = word_data['start']
-        end_time = word_data['end']
-        text = word_data['text']
-        
-        # Skip invalid or empty words
-        if not text or end_time <= start_time:
-            continue
-
-        # Calculate the duration per character
-        total_duration = end_time - start_time
-        char_duration = total_duration / len(text)
-
-        # Assign start and end times for each character
-        for i, char in enumerate(text):
-            char_start = start_time + i * char_duration
-            char_end = char_start + char_duration
-            char_alignments.append({
-                'char': char,
-                'start': round(char_start, 3),
-                'end': round(char_end, 3),
-            })
-    return char_alignments
-
 def word_to_character_alignment(word_alignments, original_text):
     """
     Converts word-level alignments to character-level alignments,
-    preserving the original text, including spaces and special characters.
+    ensuring all characters, including spaces and punctuation, have valid start and end times.
 
     Args:
         word_alignments (list): A list of dictionaries with word-level alignments.
                                 Each dict has 'start', 'end', and 'text' keys.
-        original_text (str): The original text (with spaces and formatting).
+        original_text (str): The full original text, including spaces and formatting.
 
     Returns:
-        list: A list of dictionaries containing character alignments,
-              each with 'char', 'start', and 'end' keys.
+        list: A list of dictionaries with 'char', 'start', and 'end' keys.
     """
     char_alignments = []
-    current_pos = 0  # Track position in the original text
+    current_pos = 0  # Pointer in the original text
+    last_end_time = None  # Tracks the end time of the previous word
+
     for word_data in word_alignments:
         word_text = word_data['text']
         start_time = word_data['start']
         end_time = word_data['end']
-        # Skip invalid or empty words
-        if not word_text or end_time <= start_time:
+
+        # Validate input word alignment
+        if not word_text or end_time < start_time:
             continue
-        # Locate the word in the original text, starting from the current position
+
+        # Find the word's position in the original text
         word_start_pos = original_text.find(word_text, current_pos)
         if word_start_pos == -1:
-            # If the word is not found, skip to avoid misalignment
-            continue       
-        word_end_pos = word_start_pos + len(word_text)
-        total_duration = end_time - start_time
-        char_duration = total_duration / len(word_text)
-        # Process each character of the word
+            raise ValueError(f"Word '{word_text}' not found in original_text starting from position {current_pos}")
+
+        # Align spaces or special characters BEFORE this word
+        if last_end_time is not None and word_start_pos > current_pos:
+            gap_duration = start_time - last_end_time
+            gap_char_duration = gap_duration / (word_start_pos - current_pos)
+
+            for i in range(word_start_pos - current_pos):
+                char_alignments.append({
+                    'char': original_text[current_pos + i],
+                    'start': round(last_end_time + i * gap_char_duration, 3),
+                    'end': round(last_end_time + (i + 1) * gap_char_duration, 3),
+                })
+            last_end_time = start_time  # Update the last end time
+
+        # Align characters WITHIN the current word
+        word_duration = end_time - start_time
+        char_duration = word_duration / len(word_text)
+
         for i, char in enumerate(word_text):
             char_start = start_time + i * char_duration
             char_end = char_start + char_duration
@@ -86,38 +75,51 @@ def word_to_character_alignment(word_alignments, original_text):
                 'start': round(char_start, 3),
                 'end': round(char_end, 3),
             })
-        # Update the current position to include the word and its surrounding spaces
-        current_pos = word_end_pos
-    # Add unaligned spaces and special characters with no duration
-    for i, char in enumerate(original_text):
-        if not any(char_data['char'] == char and char_data['start'] for char_data in char_alignments):
+
+        # Update tracking variables
+        current_pos = word_start_pos + len(word_text)
+        last_end_time = end_time
+
+    # Handle any remaining characters AFTER the last word
+    if current_pos < len(original_text):
+        remaining_duration = 0.1  # Assume a default small duration for trailing characters
+        for i in range(current_pos, len(original_text)):
             char_alignments.append({
-                'char': char,
-                'start': None,
-                'end': None
+                'char': original_text[i],
+                'start': round(last_end_time, 3),
+                'end': round(last_end_time + remaining_duration, 3),
             })
+            last_end_time += remaining_duration
+
     return char_alignments
 
 # Create attention matrix
-def create_attention_matrix(char_alignments, sample_rate, hop_length):
-    # Get the total number of Mel frames
-    mel_frames = []
-    for char_data in char_alignments:
-        char_start_frame = timestamp_to_mel_frame(char_data['start'], sample_rate, hop_length)
-        char_end_frame = timestamp_to_mel_frame(char_data['end'], sample_rate, hop_length)
-        mel_frames.extend(range(char_start_frame, char_end_frame + 1))
-    len_mel = max(mel_frames) + 1  # Total Mel frames
+def create_attention_matrix(char_alignments, sample_rate, hop_length, len_mel):
+    len_mel = int(len_mel)
     
     # Initialize attention matrix
     len_text = len(char_alignments)
     attention_matrix = np.zeros((len_text, len_mel), dtype=np.float32)
 
+    # Track the previous token's end frame
+    previous_end_frame = 0
+
     # Fill in the attention matrix
     for idx, char_data in enumerate(char_alignments):
+        # Calculate the start and end frames
         char_start_frame = timestamp_to_mel_frame(char_data['start'], sample_rate, hop_length)
         char_end_frame = timestamp_to_mel_frame(char_data['end'], sample_rate, hop_length)
+        
+        # Prevent overlap by ensuring char_start_frame is at least the previous end frame
+        char_start_frame = max(char_start_frame, previous_end_frame)
+        char_end_frame = max(char_start_frame, char_end_frame)  # Ensure start <= end
+
+        # Fill the attention matrix
         attention_matrix[idx, char_start_frame:char_end_frame + 1] = 1.0
-    
+        
+        # Update the previous end frame for the next iteration
+        previous_end_frame = char_end_frame + 1
+
     return attention_matrix
 
 def fix_attention_mask(attn):
@@ -203,14 +205,15 @@ def generate_word_timestamps(audio_path, text, alignment_model, alignment_tokeni
 # Main execution block
 if __name__ == '__main__':
     # Paths and settings
-    audio_path = "/workspace/F5-TTS/data/LJSpeech-1.1/wavs/LJ001-0001.wav"
-    text = "Printing, in the only sense with which we are at present concerned, differs from most if not from all the arts and crafts represented in the Exhibition"
+    audio_path = "data/LJSpeech-1.1/wavs/LJ003-0273.wav"
+    text = """"I believe," says Mr. Bennet in the letter already largely quoted,"""
     language = "iso"  # ISO-639-3 Language code
     device = "cuda" if torch.cuda.is_available() else "cpu"
     batch_size = 16
 
     print("Len text: ", len(text))
-    print("Len mel: ", librosa.get_duration(filename=audio_path) * SAMPLE_RATE // HOP_LENGTH)
+    len_mel = librosa.get_duration(filename=audio_path) * SAMPLE_RATE // HOP_LENGTH
+    print("Len mel: ", len_mel)
 
     # Load alignment model
     alignment_model, alignment_tokenizer = load_alignment_model(
@@ -228,7 +231,7 @@ if __name__ == '__main__':
     char_alignments = word_to_character_alignment(word_timestamps, text)
 
     # Step 3: Create attention matrix
-    attention_matrix = create_attention_matrix(char_alignments, SAMPLE_RATE, HOP_LENGTH)
+    attention_matrix = create_attention_matrix(char_alignments, SAMPLE_RATE, HOP_LENGTH, len_mel)
 
     # Print Results
     print("\nCharacter Alignments:")
@@ -238,3 +241,4 @@ if __name__ == '__main__':
     print("\nAttention Matrix Shape:", attention_matrix.shape)
     print("Attention Matrix:")
     print(attention_matrix)
+    # import pdb; pdb.set_trace()

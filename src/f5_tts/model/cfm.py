@@ -165,7 +165,6 @@ class CFM(nn.Module):
             # step_cond = torch.where(cond_mask, cond, torch.zeros_like(cond))
 
             # predict flow
-            import pdb; pdb.set_trace()
             pred = self.transformer(
                 x=x, cond=step_cond, text=text, time=t, mask=mask, drop_audio_cond=False, drop_text=False, attn=attn,
             )
