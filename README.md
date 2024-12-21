@@ -28,6 +28,7 @@ conda activate f5-tts
 
 # Install pytorch with your CUDA version, e.g.
 pip install torch==2.3.0+cu118 torchaudio==2.3.0+cu118 --extra-index-url https://download.pytorch.org/whl/cu118
+pip install git+https://github.com/MahmoudAshraf97/ctc-forced-aligner.git
 ```
 
 Then you can choose from a few options below:

@@ -297,6 +297,7 @@ class Trainer:
                     text_inputs = batch["text"]
                     mel_spec = batch["mel"].permute(0, 2, 1)
                     mel_lengths = batch["mel_lengths"]
+                    text_lengths = batch["text_lengths"]
                     attn = batch["attn"]
 
                     # TODO. add duration predictor training
@@ -337,33 +338,39 @@ class Trainer:
                         infer_text = [
                             text_inputs[0] + ([" "] if isinstance(text_inputs[0], list) else " ") + text_inputs[0]
                         ]
-                        A = attn[0:1,:,:]
+                        A = attn[0:1,:text_lengths[0],:mel_lengths[0]]
                         final_shape = (1, 2 * A.shape[1] + 1, 2 * A.shape[2])
                         val_attn = torch.zeros(final_shape, dtype=A.dtype, device=A.device)
                         val_attn[0, :A.shape[1], :A.shape[2]] = A[0]
                         val_attn[0, -A.shape[1]:, -A.shape[2]:] = A[0]
-                        with torch.inference_mode():
-                            generated, _ = self.accelerator.unwrap_model(self.model).sample(
-                                cond=mel_spec[0][:ref_audio_len].unsqueeze(0),
-                                text=infer_text,
-                                duration=ref_audio_len * 2,
-                                steps=nfe_step,
-                                cfg_strength=cfg_strength,
-                                sway_sampling_coef=sway_sampling_coef,
-                                attn=val_attn,
-                            )
-                            generated = generated.to(torch.float32)
-                            gen_mel_spec = generated[:, ref_audio_len:, :].permute(0, 2, 1).to(self.accelerator.device)
-                            ref_mel_spec = batch["mel"][0].unsqueeze(0)
-                            if self.vocoder_name == "vocos":
-                                gen_audio = vocoder.decode(gen_mel_spec).cpu()
-                                ref_audio = vocoder.decode(ref_mel_spec).cpu()
-                            elif self.vocoder_name == "bigvgan":
-                                gen_audio = vocoder(gen_mel_spec).squeeze(0).cpu()
-                                ref_audio = vocoder(ref_mel_spec).squeeze(0).cpu()
-
-                        torchaudio.save(f"{log_samples_path}/step_{global_step}_gen.wav", gen_audio, target_sample_rate)
-                        torchaudio.save(f"{log_samples_path}/step_{global_step}_ref.wav", ref_audio, target_sample_rate)
+                        try:
+                            with torch.inference_mode():
+                                generated, _ = self.accelerator.unwrap_model(self.model).sample(
+                                    cond=mel_spec[0][:ref_audio_len].unsqueeze(0),
+                                    text=infer_text,
+                                    duration=ref_audio_len * 2,
+                                    steps=nfe_step,
+                                    cfg_strength=cfg_strength,
+                                    sway_sampling_coef=sway_sampling_coef,
+                                    attn=val_attn,
+                                )
+                                generated = generated.to(torch.float32)
+                                gen_mel_spec = generated[:, ref_audio_len:, :].permute(0, 2, 1).to(self.accelerator.device)
+                                ref_mel_spec = batch["mel"][0].unsqueeze(0)
+                                if self.vocoder_name == "vocos":
+                                    gen_audio = vocoder.decode(gen_mel_spec).cpu()
+                                    ref_audio = vocoder.decode(ref_mel_spec).cpu()
+                                elif self.vocoder_name == "bigvgan":
+                                    gen_audio = vocoder(gen_mel_spec).squeeze(0).cpu()
+                                    ref_audio = vocoder(ref_mel_spec).squeeze(0).cpu()
+    
+                            torchaudio.save(f"{log_samples_path}/step_{global_step}_gen.wav", gen_audio, target_sample_rate)
+                            torchaudio.save(f"{log_samples_path}/step_{global_step}_ref.wav", ref_audio, target_sample_rate)
+                        except Exception as e:
+                            print (e)
+                            import traceback
+                            traceback.print_exc()
+                            print ('skip this')
 
                 if global_step % self.last_per_steps == 0:
                     self.save_checkpoint(global_step, last=True)
