@@ -218,6 +218,7 @@ class CFM(nn.Module):
         lens: int["b"] | None = None,  # noqa: F821
         noise_scheduler: str | None = None,
         attn=None,
+        returns_text_tokens=False,
     ):
         # handle raw wave
         if inp.ndim == 2:
@@ -234,6 +235,7 @@ class CFM(nn.Module):
             else:
                 text = list_str_to_tensor(text).to(device)
             assert text.shape[0] == batch
+        # NOTE: we should wrap the above code to a method to get text tensor from raw text (list of strings)
 
         # lens and mask
         if not exists(lens):
@@ -276,12 +278,14 @@ class CFM(nn.Module):
 
         # if want rigourously mask out padding, record in collate_fn in dataset.py, and pass in here
         # adding mask will use more memory, thus also need to adjust batchsampler with scaled down threshold for long sequences
-        pred = self.transformer(
-            x=φ, cond=cond, text=text, time=time, drop_audio_cond=drop_audio_cond, drop_text=drop_text, attn=attn,
+        pred, text_embed = self.transformer(
+            x=φ, cond=cond, text=text, time=time, drop_audio_cond=drop_audio_cond, drop_text=drop_text, attn=attn, returns_text_embed=True
         )
 
         # flow matching loss
         loss = F.mse_loss(pred, flow, reduction="none")
         loss = loss[rand_span_mask]
 
+        if returns_text_tokens:
+            return loss.mean(), cond, pred, text, text_embed
         return loss.mean(), cond, pred

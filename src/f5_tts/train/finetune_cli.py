@@ -3,7 +3,7 @@ import os
 import shutil
 
 from cached_path import cached_path
-from f5_tts.model import CFM, UNetT, DiT, Trainer
+from f5_tts.model import CFM, UNetT, DiT, Trainer, DurationPredictor
 from f5_tts.model.utils import get_tokenizer
 from f5_tts.model.dataset import load_dataset
 from importlib.resources import files
@@ -32,7 +32,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train CFM Model")
 
     parser.add_argument(
-        "--exp_name", type=str, default="F5TTS_Base", choices=["F5TTS_Base", "E2TTS_Base"], help="Experiment name"
+        "--exp_name", type=str, default="F5TTS_Base", help="Experiment name"
     )
     parser.add_argument("--dataset_name", type=str, default="Emilia_ZH_EN", help="Name of the dataset to use")
     parser.add_argument("--learning_rate", type=float, default=1e-5, help="Learning rate for training")
@@ -81,7 +81,7 @@ def parse_args():
 def main():
     args = parse_args()
 
-    checkpoint_path = str(files("f5_tts").joinpath(f"../../ckpts/{args.dataset_name}"))
+    checkpoint_path = str(files("f5_tts").joinpath(f"../../ckpts/{args.exp_name}_{args.dataset_name}"))
 
     # Model parameters based on experiment name
     if args.exp_name == "F5TTS_Base":
@@ -100,6 +100,15 @@ def main():
         if args.finetune:
             if args.pretrain is None:
                 ckpt_path = str(cached_path("hf://SWivid/E2-TTS/E2TTS_Base/model_1200000.pt"))
+            else:
+                ckpt_path = args.pretrain
+    else:
+        wandb_resume_id = None
+        model_cls = DiT
+        model_cfg = dict(dim=1024, depth=22, heads=16, ff_mult=2, text_dim=512, conv_layers=4)
+        if args.finetune:
+            if args.pretrain is None:
+                ckpt_path = str(cached_path("hf://SWivid/F5-TTS/F5TTS_Base/model_1200000.pt"))
             else:
                 ckpt_path = args.pretrain
 
@@ -142,7 +151,8 @@ def main():
         mel_spec_kwargs=mel_spec_kwargs,
         vocab_char_map=vocab_char_map,
     )
-
+    duration_predictor = DurationPredictor(vocab_size, 512, 32, 3, 0.5)
+    
     trainer = Trainer(
         model,
         args.epochs,
@@ -162,6 +172,7 @@ def main():
         log_samples=args.log_samples,
         last_per_steps=args.last_per_steps,
         bnb_optimizer=args.bnb_optimizer,
+        duration_predictor=duration_predictor,
     )
 
     train_dataset = load_dataset(args.dataset_name, tokenizer, mel_spec_kwargs=mel_spec_kwargs)

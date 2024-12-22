@@ -158,6 +158,7 @@ class DiT(nn.Module):
         drop_text,  # cfg for text
         mask: bool["b n"] | None = None,  # noqa: F722
         attn = None,
+        returns_text_embed = False,
     ):
         batch, seq_len = x.shape[0], x.shape[1]
         if time.ndim == 0:
@@ -185,4 +186,6 @@ class DiT(nn.Module):
         x = self.norm_out(x, t)
         output = self.proj_out(x)
 
+        if returns_text_embed:
+            return output, text_embed
         return output

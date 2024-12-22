@@ -118,7 +118,11 @@ class Trainer:
 
         self.noise_scheduler = noise_scheduler
 
-        self.duration_predictor = duration_predictor
+        total_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        print(f"Total number of trainable parameters in base model: {total_params}")
+        total_params = sum(p.numel() for p in duration_predictor.parameters() if p.requires_grad)
+        print(f"Total number of trainable parameters in DP: {total_params}")
+        setattr(self.model, 'duration_predictor', duration_predictor)
 
         if bnb_optimizer:
             import bitsandbytes as bnb
@@ -183,10 +187,15 @@ class Trainer:
                 if key in checkpoint["model_state_dict"]:
                     del checkpoint["model_state_dict"][key]
 
-            self.accelerator.unwrap_model(self.model).load_state_dict(checkpoint["model_state_dict"])
-            self.accelerator.unwrap_model(self.optimizer).load_state_dict(checkpoint["optimizer_state_dict"])
-            if self.scheduler:
-                self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+            state_dict_load_result = self.accelerator.unwrap_model(self.model).load_state_dict(checkpoint["model_state_dict"], strict=False)
+            print("Missing keys:", state_dict_load_result.missing_keys)
+            print("Unexpected keys:", state_dict_load_result.unexpected_keys)
+            try:    
+                self.accelerator.unwrap_model(self.optimizer).load_state_dict(checkpoint["optimizer_state_dict"])
+                if self.scheduler:
+                    self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+            except:
+                pass
             step = checkpoint["step"]
         else:
             checkpoint["model_state_dict"] = {
@@ -194,7 +203,9 @@ class Trainer:
                 for k, v in checkpoint["ema_model_state_dict"].items()
                 if k not in ["initted", "step"]
             }
-            self.accelerator.unwrap_model(self.model).load_state_dict(checkpoint["model_state_dict"])
+            state_dict_load_result = self.accelerator.unwrap_model(self.model).load_state_dict(checkpoint["model_state_dict"], strict=False)
+            print("Missing keys:", state_dict_load_result.missing_keys)
+            print("Unexpected keys:", state_dict_load_result.unexpected_keys)
             step = 0
 
         del checkpoint
@@ -300,16 +311,25 @@ class Trainer:
                     text_lengths = batch["text_lengths"]
                     attn = batch["attn"]
 
-                    # TODO. add duration predictor training
-                    if self.duration_predictor is not None and self.accelerator.is_local_main_process:
-                        dur_loss = self.duration_predictor(mel_spec, lens=batch.get("durations"))
-                        self.accelerator.log({"duration loss": dur_loss.item()}, step=global_step)
-
-                    loss, cond, pred = self.model(
-                        mel_spec, text=text_inputs, lens=mel_lengths, noise_scheduler=self.noise_scheduler, attn=attn
+                    loss, cond, pred, text_tokens, text_embed = self.model(
+                        mel_spec, text=text_inputs, lens=mel_lengths, noise_scheduler=self.noise_scheduler, attn=attn, returns_text_tokens=True
                     )
-                    self.accelerator.backward(loss)
 
+                    # TODO. add duration predictor training
+                    if getattr(self.model, 'duration_predictor') is not None and self.accelerator.is_local_main_process:
+                        b, nt = text_tokens.shape  # Get batch size and sequence length
+                        range_tensor = torch.arange(nt, device=text_tokens.device).unsqueeze(0)  # Shape [1, nt]
+                        text_tokens_mask = (range_tensor < text_lengths.unsqueeze(1)).int()
+                        w = attn.sum(dim=2) # [b nt]
+                        logw_ = torch.log(w + 1e-6) * text_tokens_mask
+                        logw = self.model.duration_predictor(text_tokens, text_tokens_mask)
+                        l_length = torch.sum((logw - logw_)**2, [1,2]) / torch.sum(text_tokens_mask)
+                        dur_loss = torch.sum(l_length.float())
+                        # self.accelerator.log({"duration loss": dur_loss.item()}, step=global_step)
+                    else:
+                        dur_loss = torch.tensor(0.0).to(device=text_tokens.device)
+                    self.accelerator.backward(loss + dur_loss * 0.1)
+                    
                     if self.max_grad_norm > 0 and self.accelerator.sync_gradients:
                         self.accelerator.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
 
@@ -323,12 +343,12 @@ class Trainer:
                 global_step += 1
 
                 if self.accelerator.is_local_main_process:
-                    self.accelerator.log({"loss": loss.item(), "lr": self.scheduler.get_last_lr()[0]}, step=global_step)
+                    self.accelerator.log({"loss": loss.item(), "dur_loss": dur_loss.item(), "lr": self.scheduler.get_last_lr()[0]}, step=global_step)
                     if self.logger == "tensorboard":
                         self.writer.add_scalar("loss", loss.item(), global_step)
                         self.writer.add_scalar("lr", self.scheduler.get_last_lr()[0], global_step)
 
-                progress_bar.set_postfix(step=str(global_step), loss=loss.item())
+                progress_bar.set_postfix(step=str(global_step), loss=loss.item(), dur_loss=dur_loss.item())
 
                 if global_step % (self.save_per_updates * self.grad_accumulation_steps) == 0:
                     self.save_checkpoint(global_step)

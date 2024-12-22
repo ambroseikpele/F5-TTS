@@ -26,7 +26,7 @@ def main():
     text_vocab_set = set()
 
     with open(meta_info, "r") as f:
-        lines = f.readlines()[:4000]
+        lines = f.readlines() # [:4000]
         for line in tqdm(lines):
             uttr, text, norm_text = line.split("|")
             norm_text = norm_text.strip()
