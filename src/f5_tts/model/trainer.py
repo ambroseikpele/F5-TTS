@@ -179,7 +179,15 @@ class Trainer:
                 del checkpoint["ema_model_state_dict"][key]
 
         if self.is_main:
-            self.ema_model.load_state_dict(checkpoint["ema_model_state_dict"])
+            try:
+                state_dict_load_result = self.ema_model.load_state_dict(checkpoint["ema_model_state_dict"], strict=False)
+                print("Missing keys:", state_dict_load_result.missing_keys)
+                print("Unexpected keys:", state_dict_load_result.unexpected_keys)
+            except:
+                checkpoint["ema_model_state_dict"].pop('ema_model.transformer.text_embed.text_embed.weight', None)
+                state_dict_load_result = self.ema_model.load_state_dict(checkpoint["ema_model_state_dict"], strict=False)
+                print("Missing keys:", state_dict_load_result.missing_keys)
+                print("Unexpected keys:", state_dict_load_result.unexpected_keys)
 
         if "step" in checkpoint:
             # patch for backward compatibility, 305e3ea

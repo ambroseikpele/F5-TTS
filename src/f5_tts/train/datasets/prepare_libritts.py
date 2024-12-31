@@ -10,9 +10,16 @@ from pathlib import Path
 from tqdm import tqdm
 import soundfile as sf
 from datasets.arrow_writer import ArrowWriter
+import librosa
+from utils_alignment import load_alignment_model, generate_word_timestamps, word_to_character_alignment, create_attention_matrix, convert_word_timestamps_to_phonemes
 
 
 def deal_with_audio_dir(audio_dir):
+    alignment_model, alignment_tokenizer = load_alignment_model(
+        "cuda",
+        dtype=torch.float16,
+    )
+
     sub_result, durations = [], []
     vocab_set = set()
     audio_lists = list(audio_dir.rglob("*.wav"))
@@ -23,9 +30,19 @@ def deal_with_audio_dir(audio_dir):
         duration = sf.info(line).duration
         if duration < 0.4 or duration > 30:
             continue
-        sub_result.append({"audio_path": str(line), "text": text, "duration": duration})
+
+        wav_path = str(line)
+        word_timestamps = generate_word_timestamps(wav_path, text, alignment_model, alignment_tokenizer,)
+        word_timestamps, phonemized_text = convert_word_timestamps_to_phonemes(word_timestamps)
+        char_alignments = word_to_character_alignment(word_timestamps, phonemized_text)
+        SAMPLE_RATE = 24000
+        HOP_LENGTH = 256
+        len_mel = librosa.get_duration(path=wav_path) * SAMPLE_RATE // HOP_LENGTH
+        attention_matrix = create_attention_matrix(char_alignments, SAMPLE_RATE, HOP_LENGTH, len_mel)
+        
+        sub_result.append({"audio_path": str(line), "text": phonemized_text, "duration": duration, "attn": attention_matrix.tolist(),})
         durations.append(duration)
-        vocab_set.update(list(text))
+        vocab_set.update(list(phonemized_text))
     return sub_result, durations, vocab_set
 
 

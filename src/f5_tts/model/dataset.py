@@ -8,6 +8,7 @@ import torch.nn.functional as F
 import torchaudio
 from datasets import Dataset as Dataset_
 from datasets import load_from_disk
+from datasets import concatenate_datasets
 from torch import nn
 from torch.utils.data import Dataset, Sampler
 from tqdm import tqdm
@@ -258,7 +259,11 @@ def load_dataset(
             try:
                 train_dataset = load_from_disk(f"{rel_data_path}/raw")
             except:  # noqa: E722
-                train_dataset = Dataset_.from_file(f"{rel_data_path}/raw.arrow")
+                # train_dataset = Dataset_.from_file(f"{rel_data_path}/raw.arrow")
+                print("debug")
+                import glob
+                arrow_files = glob.glob(f"{rel_data_path}/raw-*.arrow")
+                train_dataset = concatenate_datasets([Dataset_.from_file(arrow_file) for arrow_file in arrow_files])
             preprocessed_mel = False
         elif audio_type == "mel":
             train_dataset = Dataset_.from_file(f"{rel_data_path}/mel.arrow")

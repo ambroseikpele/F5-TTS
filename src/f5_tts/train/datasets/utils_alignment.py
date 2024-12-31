@@ -10,7 +10,10 @@ from ctc_forced_aligner import (
     postprocess_results,
 )
 import librosa
+from phonemizer.backend import EspeakBackend
 
+
+espeak_backend = EspeakBackend(language="en-us", with_stress=True, preserve_punctuation=True)
 # Parameters
 SAMPLE_RATE = 24000  # Sampling rate in Hz
 HOP_LENGTH = 256     # Hop length for Mel spectrogram computation
@@ -202,6 +205,13 @@ def generate_word_timestamps(audio_path, text, alignment_model, alignment_tokeni
     word_timestamps = postprocess_results(text_starred, spans, stride, scores)
     return word_timestamps
 
+def convert_word_timestamps_to_phonemes(word_timestamps):
+    phonemes = espeak_backend.phonemize([item['text'] for item in word_timestamps])
+    for i, item in enumerate(word_timestamps):
+        item['text'] = phonemes[i]
+    return word_timestamps, " ".join(phonemes)
+
+
 # Main execution block
 if __name__ == '__main__':
     # Paths and settings
@@ -225,10 +235,11 @@ if __name__ == '__main__':
     word_timestamps = generate_word_timestamps(
         audio_path, text, alignment_model, alignment_tokenizer, batch_size, language
     )
+    word_timestamps, phonemized_text = convert_word_timestamps_to_phonemes(word_timestamps)
     print("Word Timestamps:", word_timestamps)
 
     # Step 2: Convert to character-level alignments
-    char_alignments = word_to_character_alignment(word_timestamps, text)
+    char_alignments = word_to_character_alignment(word_timestamps, phonemized_text)
 
     # Step 3: Create attention matrix
     attention_matrix = create_attention_matrix(char_alignments, SAMPLE_RATE, HOP_LENGTH, len_mel)

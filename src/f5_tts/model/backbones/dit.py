@@ -54,16 +54,19 @@ class TextEmbedding(nn.Module):
         else:
             # attn: [b nt n]
             # attn = fix_attention_mask(attn)
-            attn = attn.float()
-            text = text.float()
-            text = torch.bmm(text.unsqueeze(2).transpose(1,2), attn).squeeze(1)[..., :seq_len] # [b n]
-            text = text.long()
-            # text = text.matmul(attn) # [b n]
+            # attn = attn.float()
+            # text = text.float()
+            # text = torch.bmm(text.unsqueeze(2).transpose(1,2), attn).squeeze(1)[..., :seq_len] # [b n]
+            # text = text.long()
+            pass
 
         if drop_text:  # cfg for text
             text = torch.zeros_like(text)
 
-        text = self.text_embed(text)  # b n -> b n d
+        text = self.text_embed(text)  # b nt -> b nt d
+        if attn is not None:
+            attn_transposed = attn.transpose(1, 2) # b nt n
+            text = torch.matmul(attn_transposed.float(), text.float()) # b n d
 
         # possible extra modeling
         if self.extra_modeling:
