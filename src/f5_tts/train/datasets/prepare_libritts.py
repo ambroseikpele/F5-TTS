@@ -4,7 +4,10 @@ import sys
 sys.path.append(os.getcwd())
 
 import json
-from concurrent.futures import ProcessPoolExecutor
+import torch
+import torch.multiprocessing as mp
+mp.set_start_method('spawn', force=True)
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from importlib.resources import files
 from pathlib import Path
 from tqdm import tqdm
@@ -24,7 +27,7 @@ def deal_with_audio_dir(audio_dir):
     vocab_set = set()
     audio_lists = list(audio_dir.rglob("*.wav"))
 
-    for line in audio_lists:
+    for line in tqdm(audio_lists):
         text_path = line.with_suffix(".normalized.txt")
         text = open(text_path, "r").read().strip()
         duration = sf.info(line).duration
@@ -32,9 +35,12 @@ def deal_with_audio_dir(audio_dir):
             continue
 
         wav_path = str(line)
-        word_timestamps = generate_word_timestamps(wav_path, text, alignment_model, alignment_tokenizer,)
-        word_timestamps, phonemized_text = convert_word_timestamps_to_phonemes(word_timestamps)
-        char_alignments = word_to_character_alignment(word_timestamps, phonemized_text)
+        try:
+            word_timestamps = generate_word_timestamps(wav_path, text, alignment_model, alignment_tokenizer,)
+            word_timestamps, phonemized_text = convert_word_timestamps_to_phonemes(word_timestamps)
+            char_alignments = word_to_character_alignment(word_timestamps, phonemized_text)
+        except:
+            continue
         SAMPLE_RATE = 24000
         HOP_LENGTH = 256
         len_mel = librosa.get_duration(path=wav_path) * SAMPLE_RATE // HOP_LENGTH
@@ -52,7 +58,7 @@ def main():
     text_vocab_set = set()
 
     # process raw data
-    executor = ProcessPoolExecutor(max_workers=max_workers)
+    executor = ThreadPoolExecutor(max_workers=max_workers)
     futures = []
 
     for subset in tqdm(SUB_SET):
@@ -62,11 +68,19 @@ def main():
             for audio_dir in dataset_path.iterdir()
             if audio_dir.is_dir()
         ]
+    CHUNK_SIZE = 2000
+    arrow_idx = 0
     for future in tqdm(futures, total=len(futures)):
         sub_result, durations, vocab_set = future.result()
         result.extend(sub_result)
         duration_list.extend(durations)
         text_vocab_set.update(vocab_set)
+        if len(result) >= CHUNK_SIZE:
+            with ArrowWriter(path=f"{save_dir}/raw-{arrow_idx}.arrow") as writer:
+                for line in tqdm(result, desc="Writing to raw.arrow ..."):
+                    writer.write(line)
+            result.clear()
+            arrow_idx += 1
     executor.shutdown()
 
     # save preprocessed dataset to disk
@@ -74,9 +88,10 @@ def main():
         os.makedirs(f"{save_dir}")
     print(f"\nSaving to {save_dir} ...")
 
-    with ArrowWriter(path=f"{save_dir}/raw.arrow") as writer:
-        for line in tqdm(result, desc="Writing to raw.arrow ..."):
-            writer.write(line)
+    if result:
+        with ArrowWriter(path=f"{save_dir}/raw-{arrow_idx}.arrow") as writer:
+            for line in tqdm(result, desc="Writing to raw.arrow ..."):
+                writer.write(line)
 
     # dup a json separately saving duration in case for DynamicBatchSampler ease
     with open(f"{save_dir}/duration.json", "w", encoding="utf-8") as f:
@@ -93,12 +108,13 @@ def main():
 
 
 if __name__ == "__main__":
-    max_workers = 36
+    max_workers = 4 # 36
 
     tokenizer = "char"  # "pinyin" | "char"
 
     SUB_SET = ["train-clean-100", "train-clean-360", "train-other-500"]
-    dataset_dir = "<SOME_PATH>/LibriTTS"
+    SUB_SET = ["train-clean-360"]
+    dataset_dir = "data/LibriTTS_R"
     dataset_name = f"LibriTTS_{'_'.join(SUB_SET)}_{tokenizer}".replace("train-clean-", "").replace("train-other-", "")
     save_dir = str(files("f5_tts").joinpath("../../")) + f"/data/{dataset_name}"
     print(f"\nPrepare for {dataset_name}, will save to {save_dir}\n")

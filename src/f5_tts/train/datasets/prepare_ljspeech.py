@@ -27,7 +27,7 @@ def main():
 
     with open(meta_info, "r") as f:
         idx = 0
-        lines = f.readlines() # [:2000]
+        lines = f.readlines()[:4000]
         arrow_idx = 0
         for line in tqdm(lines):
             if idx % 2000 == 0:
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     tokenizer = "char"  # "pinyin" | "char"
 
     dataset_dir = "data/LJSpeech-1.1"
-    dataset_name = f"LJSpeech_{tokenizer}"
+    dataset_name = f"LJSpeech_4k_{tokenizer}"
     meta_info = os.path.join(dataset_dir, "metadata.csv")
     save_dir = str(files("f5_tts").joinpath("../../")) + f"/data/{dataset_name}"
     print(f"\nPrepare for {dataset_name}, will save to {save_dir}\n")

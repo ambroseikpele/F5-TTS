@@ -206,7 +206,7 @@ def generate_word_timestamps(audio_path, text, alignment_model, alignment_tokeni
     return word_timestamps
 
 def convert_word_timestamps_to_phonemes(word_timestamps):
-    phonemes = espeak_backend.phonemize([item['text'] for item in word_timestamps])
+    phonemes = espeak_backend.phonemize([item['text'] for item in word_timestamps], strip=True)
     for i, item in enumerate(word_timestamps):
         item['text'] = phonemes[i]
     return word_timestamps, " ".join(phonemes)

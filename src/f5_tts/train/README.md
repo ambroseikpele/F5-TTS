@@ -51,7 +51,9 @@ accelerate launch --mixed_precision=fp16 src/f5_tts/train/train.py --config-name
 ```
 accelerate launch src/f5_tts/train/finetune_cli.py --dataset_name LJSpeech --batch_size_per_gpu 2000 --save_per_updates 500 --tokenizer custom --log_samples True --logger tensorboard
 accelerate launch src/f5_tts/train/finetune_cli.py --dataset_name LJSpeech_2k --batch_size_per_gpu 2000 --save_per_updates 10000 --tokenizer char --log_samples True --logger tensorboard
-accelerate launch src/f5_tts/train/finetune_cli.py --dataset_name LJSpeech --batch_size_per_gpu 2000 --save_per_updates 10000 --tokenizer char --log_samples True --logger tensorboard
+accelerate launch src/f5_tts/train/finetune_cli.py --dataset_name LJSpeech --batch_size_per_gpu 2000 --save_per_updates 10000 --tokenizer char --log_samples True --logger tensorboard --pretrain /workspace/F5-TTS/ckpts/F5TTS_Base_LJSpeech_2k/model_50000_slim.pt
+accelerate launch src/f5_tts/train/finetune_cli.py --dataset_name LJSpeech_4k --batch_size_per_gpu 2000 --save_per_updates 10000 --tokenizer custom --log_samples True --logger tensorboard --pretrain /workspace/F5-TTS/ckpts/F5TTS_Base_LJS
+peech/model_200000.pt --tokenizer_path /workspace/F5-TTS/data/LJSpeech_char/vocab.txt
 ```
 
 Discussion board for Finetuning [#57](https://github.com/SWivid/F5-TTS/discussions/57).

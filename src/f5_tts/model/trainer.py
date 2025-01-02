@@ -195,9 +195,16 @@ class Trainer:
                 if key in checkpoint["model_state_dict"]:
                     del checkpoint["model_state_dict"][key]
 
-            state_dict_load_result = self.accelerator.unwrap_model(self.model).load_state_dict(checkpoint["model_state_dict"], strict=False)
-            print("Missing keys:", state_dict_load_result.missing_keys)
-            print("Unexpected keys:", state_dict_load_result.unexpected_keys)
+            try:
+                state_dict_load_result = self.accelerator.unwrap_model(self.model).load_state_dict(checkpoint["model_state_dict"], strict=False)
+                print("Missing keys:", state_dict_load_result.missing_keys)
+                print("Unexpected keys:", state_dict_load_result.unexpected_keys)
+            except:
+                checkpoint["model_state_dict"].pop('transformer.text_embed.text_embed.weight', None)
+                checkpoint["model_state_dict"].pop('duration_predictor.text_embed.weight', None)
+                state_dict_load_result = self.accelerator.unwrap_model(self.model).load_state_dict(checkpoint["model_state_dict"], strict=False)
+                print("Missing keys:", state_dict_load_result.missing_keys)
+                print("Unexpected keys:", state_dict_load_result.unexpected_keys)
             try:    
                 self.accelerator.unwrap_model(self.optimizer).load_state_dict(checkpoint["optimizer_state_dict"])
                 if self.scheduler:
@@ -319,9 +326,15 @@ class Trainer:
                     text_lengths = batch["text_lengths"]
                     attn = batch["attn"]
 
-                    loss, cond, pred, text_tokens, text_embed = self.model(
-                        mel_spec, text=text_inputs, lens=mel_lengths, noise_scheduler=self.noise_scheduler, attn=attn, returns_text_tokens=True
-                    )
+                    try:
+                        loss, cond, pred, text_tokens, text_embed = self.model(
+                            mel_spec, text=text_inputs, lens=mel_lengths, noise_scheduler=self.noise_scheduler, attn=attn, returns_text_tokens=True
+                        )
+                    except RuntimeError as e:
+                        # TODO: debug this!!!
+                        print(text_tokens.shape, text_embed.shape, mel_spec.shape, text_inputs)
+                        torch.cuda.empty_cache()
+                        continue
 
                     # TODO. add duration predictor training
                     if getattr(self.model, 'duration_predictor') is not None and self.accelerator.is_local_main_process:

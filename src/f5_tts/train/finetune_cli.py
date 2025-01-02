@@ -179,6 +179,7 @@ def main():
 
     trainer.train(
         train_dataset,
+        num_workers=4,
         resumable_with_seed=666,  # seed for shuffling dataset
     )
 

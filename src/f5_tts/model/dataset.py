@@ -262,7 +262,8 @@ def load_dataset(
                 # train_dataset = Dataset_.from_file(f"{rel_data_path}/raw.arrow")
                 print("debug")
                 import glob
-                arrow_files = glob.glob(f"{rel_data_path}/raw-*.arrow")
+                num_arrow_files = len(glob.glob(f"{rel_data_path}/raw-*.arrow"))
+                arrow_files = [f"{rel_data_path}/raw-{i}.arrow" for i in range(num_arrow_files)]
                 train_dataset = concatenate_datasets([Dataset_.from_file(arrow_file) for arrow_file in arrow_files])
             preprocessed_mel = False
         elif audio_type == "mel":
