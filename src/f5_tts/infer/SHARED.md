@@ -51,6 +51,8 @@ Config: {"dim": 1024, "depth": 22, "heads": 16, "ff_mult": 2, "text_dim": 512, "
 
 
 ## English
+
+#### F5-TTS Base @ en @ sinhprous
 |Model|🤗Hugging Face|Data (Hours)|Model License|
 |:---:|:------------:|:-----------:|:-------------:|
 |F5-TTS Base|[ckpt & vocab](https://huggingface.co/sinhprous/F5TTS-stabilized-LJSpeech/tree/main)|[LJSpeech](https://keithito.com/LJ-Speech-Dataset/)|cc-by-nc-4.0|
