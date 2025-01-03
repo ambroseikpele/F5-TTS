@@ -50,6 +50,14 @@ Config: {"dim": 1024, "depth": 22, "heads": 16, "ff_mult": 2, "text_dim": 512, "
 
 
 ## English
+|Model|🤗Hugging Face|Data (Hours)|Model License|
+|:---:|:------------:|:-----------:|:-------------:|
+|F5-TTS Base|[ckpt & vocab](https://huggingface.co/sinhprous/F5TTS-stabilized-LJSpeech/tree/main)|[LJSpeech](https://keithito.com/LJ-Speech-Dataset/)|cc-by-nc-4.0|
+
+```bash
+Model: hf://sinhprous/F5TTS-stabilized-LJSpeech/model_130000.pt
+Vocab: hf://sinhprous/F5TTS-stabilized-LJSpeech/vocab.txt
+Config: {"dim": 1024, "depth": 22, "heads": 16, "ff_mult": 2, "text_dim": 512, "conv_layers": 4}
 
 
 ## Finnish

@@ -20,6 +20,7 @@ python src/f5_tts/train/datasets/prepare_libritts.py
 # Prepare the LJSpeech dataset
 python src/f5_tts/train/datasets/prepare_ljspeech.py
 ```
+This script `src/f5_tts/train/datasets/prepare_ljspeech.py` was used to prepare LJSpeech dataset. It phonemizes the raw texts computes the phoneme-audio alignments.
 
 ### 2. Create custom dataset with metadata.csv
 Use guidance see [#57 here](https://github.com/SWivid/F5-TTS/discussions/57#discussioncomment-10959029).
@@ -48,12 +49,9 @@ accelerate launch --mixed_precision=fp16 src/f5_tts/train/train.py --config-name
 
 ### 2. Finetuning practice
 
+This script was used to finetune model on LJSpeech dataset:
 ```
-accelerate launch src/f5_tts/train/finetune_cli.py --dataset_name LJSpeech --batch_size_per_gpu 2000 --save_per_updates 500 --tokenizer custom --log_samples True --logger tensorboard
-accelerate launch src/f5_tts/train/finetune_cli.py --dataset_name LJSpeech_2k --batch_size_per_gpu 2000 --save_per_updates 10000 --tokenizer char --log_samples True --logger tensorboard
-accelerate launch src/f5_tts/train/finetune_cli.py --dataset_name LJSpeech --batch_size_per_gpu 2000 --save_per_updates 10000 --tokenizer char --log_samples True --logger tensorboard --pretrain /workspace/F5-TTS/ckpts/F5TTS_Base_LJSpeech_2k/model_50000_slim.pt
-accelerate launch src/f5_tts/train/finetune_cli.py --dataset_name LJSpeech_4k --batch_size_per_gpu 2000 --save_per_updates 10000 --tokenizer custom --log_samples True --logger tensorboard --pretrain /workspace/F5-TTS/ckpts/F5TTS_Base_LJS
-peech/model_200000.pt --tokenizer_path /workspace/F5-TTS/data/LJSpeech_char/vocab.txt
+accelerate launch src/f5_tts/train/finetune_cli.py --dataset_name LJSpeech --batch_size_per_gpu 2000 --save_per_updates 10000 --tokenizer char --log_samples True --logger tensorboard
 ```
 
 Discussion board for Finetuning [#57](https://github.com/SWivid/F5-TTS/discussions/57).

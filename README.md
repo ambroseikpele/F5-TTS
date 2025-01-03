@@ -18,6 +18,8 @@
 
 ## News
 - **2024/10/08**: F5-TTS & E2 TTS base models on [🤗 Hugging Face](https://huggingface.co/SWivid/F5-TTS), [🤖 Model Scope](https://www.modelscope.cn/models/SWivid/F5-TTS_Emilia-ZH-EN), [🟣 Wisemodel](https://wisemodel.cn/models/SJTU_X-LANCE/F5-TTS_Emilia-ZH-EN).
+- **2025/01/02**: Checkpoint for LJspeech single speaker [🤗 Hugging Face](https://huggingface.co/sinhprous/F5TTS-stabilized-LJSpeech)
+- TBD: Checkpoint for multi-speaker dataset.
 
 ## Installation
 
@@ -89,25 +91,10 @@ f5-tts_infer-gradio --port 7860 --host 0.0.0.0
 f5-tts_infer-gradio --share
 ```
 
-### 2. CLI Inference
+### 2. Notebook Inference
 
-```bash
-# Run with flags
-# Leave --ref_text "" will have ASR model transcribe (extra GPU memory usage)
-f5-tts_infer-cli \
---model "F5-TTS" \
---ref_audio "ref_audio.wav" \
---ref_text "The content, subtitle or transcription of reference audio." \
---gen_text "Some text you want TTS model generate for you."
+Please use this notebook [Inference.ipynb](Inference.ipynb) or [Colab](https://colab.research.google.com/drive/1baUdhv7kIdGIU39VQbeCI_bMAYbyjcF0#scrollTo=XA7Mc-U9yXSC) for inference.
 
-# Run with default setting. src/f5_tts/infer/examples/basic/basic.toml
-f5-tts_infer-cli
-# Or with your own .toml file
-f5-tts_infer-cli -c custom.toml
-
-# Multi voice. See src/f5_tts/infer/README.md
-f5-tts_infer-cli -c src/f5_tts/infer/examples/multi/story.toml
-```
 
 ### 3. More instructions
 

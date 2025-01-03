@@ -170,6 +170,7 @@ class Trainer:
                 [f for f in os.listdir(self.checkpoint_path) if f.endswith(".pt")],
                 key=lambda x: int("".join(filter(str.isdigit, x))),
             )[-1]
+        print ("debug", f"{self.checkpoint_path}/{latest_checkpoint}")
         # checkpoint = torch.load(f"{self.checkpoint_path}/{latest_checkpoint}", map_location=self.accelerator.device)  # rather use accelerator.load_state ಥ_ಥ
         checkpoint = torch.load(f"{self.checkpoint_path}/{latest_checkpoint}", weights_only=True, map_location="cpu")
 
@@ -218,7 +219,12 @@ class Trainer:
                 for k, v in checkpoint["ema_model_state_dict"].items()
                 if k not in ["initted", "step"]
             }
-            state_dict_load_result = self.accelerator.unwrap_model(self.model).load_state_dict(checkpoint["model_state_dict"], strict=False)
+            try:
+                state_dict_load_result = self.accelerator.unwrap_model(self.model).load_state_dict(checkpoint["model_state_dict"], strict=False)
+            except:
+                checkpoint["model_state_dict"].pop('transformer.text_embed.text_embed.weight', None)
+                checkpoint["model_state_dict"].pop('duration_predictor.text_embed.weight', None)
+                state_dict_load_result = self.accelerator.unwrap_model(self.model).load_state_dict(checkpoint["model_state_dict"], strict=False)
             print("Missing keys:", state_dict_load_result.missing_keys)
             print("Unexpected keys:", state_dict_load_result.unexpected_keys)
             step = 0
