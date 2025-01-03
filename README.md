@@ -93,7 +93,7 @@ f5-tts_infer-gradio --share
 
 ### 2. Notebook Inference
 
-Please use this notebook [Inference.ipynb](Inference.ipynb) or [Colab](https://colab.research.google.com/drive/1baUdhv7kIdGIU39VQbeCI_bMAYbyjcF0#scrollTo=XA7Mc-U9yXSC) for inference.
+Please use this notebook [Inference.ipynb](Inference.ipynb) or [Colab](https://colab.research.google.com/drive/1baUdhv7kIdGIU39VQbeCI_bMAYbyjcF0) for inference.
 
 
 ### 3. More instructions
