@@ -18,6 +18,7 @@
 - [Multilingual](#multilingual)
     - [F5-TTS Base @ zh \& en @ F5-TTS](#f5-tts-base--zh--en--f5-tts)
 - [English](#english)
+    - [F5-TTS Base @ en @ sinhprous](#f5-tts-base--en--sinhprous)
 - [Finnish](#finnish)
     - [F5-TTS Base @ fi @ AsmoKoskinen](#f5-tts-base--fi--asmokoskinen)
 - [French](#french)
@@ -58,7 +59,7 @@ Config: {"dim": 1024, "depth": 22, "heads": 16, "ff_mult": 2, "text_dim": 512, "
 Model: hf://sinhprous/F5TTS-stabilized-LJSpeech/model_130000.pt
 Vocab: hf://sinhprous/F5TTS-stabilized-LJSpeech/vocab.txt
 Config: {"dim": 1024, "depth": 22, "heads": 16, "ff_mult": 2, "text_dim": 512, "conv_layers": 4}
-
+```
 
 ## Finnish
 
